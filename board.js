@@ -41,6 +41,59 @@
     };
   }
 
+  // Move a card to column `toColId` at position `index` (index counts the target column's cards
+  // with the moved card already removed). Handles both cross-column moves and in-column reordering.
+  function moveCard(state, cardId, toColId, index) {
+    const from = findColumnIndex(state, cardId);
+    const toIdx = state.columns.findIndex(c => c.id === toColId);
+    if (from < 0 || toIdx < 0) return state;
+    const columns = state.columns.map(c => ({ ...c, cardIds: c.cardIds.filter(x => x !== cardId) }));
+    const target = columns[toIdx].cardIds;
+    const at = Math.max(0, Math.min(Number.isInteger(index) ? index : target.length, target.length));
+    target.splice(at, 0, cardId);
+    const same = columns.every((c, i) => c.cardIds.length === state.columns[i].cardIds.length &&
+      c.cardIds.every((x, j) => x === state.columns[i].cardIds[j]));
+    return same ? state : { ...state, columns };
+  }
+
+  const PRIORITIES = ['none', 'low', 'medium', 'high'];
+
+  // Split a comma/space separated tag string into unique, lowercase tags.
+  function parseTags(text) {
+    const seen = new Set();
+    String(text || '').split(/[,\s]+/).forEach(t => {
+      t = t.trim().toLowerCase().replace(/^#/, '');
+      if (t) seen.add(t.slice(0, 30));
+    });
+    return [...seen];
+  }
+
+  // Apply edits from the detail modal. Unknown fields are ignored; an empty title keeps the old one.
+  function updateCard(state, cardId, patch) {
+    const card = state.cards[cardId];
+    if (!card) return state;
+    const next = { ...card };
+    if ('title' in patch) { const t = String(patch.title || '').trim(); if (t) next.title = t.slice(0, 200); }
+    if ('description' in patch) next.description = String(patch.description || '');
+    if ('priority' in patch) next.priority = PRIORITIES.includes(patch.priority) ? patch.priority : 'none';
+    if ('due' in patch) next.due = /^\d{4}-\d{2}-\d{2}$/.test(patch.due || '') ? patch.due : '';
+    if ('tags' in patch) next.tags = Array.isArray(patch.tags) ? parseTags(patch.tags.join(',')) : parseTags(patch.tags);
+    return { ...state, cards: { ...state.cards, [cardId]: next } };
+  }
+
+  // Local YYYY-MM-DD for a Date (avoids UTC shifts from toISOString).
+  function isoDate(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  // A card is overdue when it has a due date before today and is not in the last ("done") column.
+  function isOverdue(state, cardId, today = isoDate(new Date())) {
+    const card = state.cards[cardId];
+    if (!card || !card.due) return false;
+    const done = state.columns[state.columns.length - 1];
+    return card.due < today && !done.cardIds.includes(cardId);
+  }
+
   function deleteCard(state, cardId) {
     const cards = { ...state.cards };
     delete cards[cardId];
@@ -51,7 +104,7 @@
     return !!(state && Array.isArray(state.columns) && state.cards && typeof state.nextId === 'number');
   }
 
-  const api = { COLUMNS, createBoard, addCard, shiftCard, deleteCard, findColumnIndex, isValid };
+  const api = { COLUMNS, PRIORITIES, createBoard, addCard, shiftCard, moveCard, updateCard, parseTags, isoDate, isOverdue, deleteCard, findColumnIndex, isValid };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Board = api;
 })(this);

@@ -11,6 +11,35 @@
     <h1>Kanban Board</h1>
   </header>
   <main id="board" class="board"></main>
+
+  <dialog id="detail" aria-labelledby="detail-heading">
+    <form id="detail-form">
+      <div class="detail-head">
+        <h2 id="detail-heading">Card details</h2>
+        <span id="detail-col" class="muted"></span>
+      </div>
+      <label>Title <input name="title" type="text" required maxlength="200"></label>
+      <label>Description <textarea name="description" rows="4"></textarea></label>
+      <div class="row">
+        <label>Priority
+          <select name="priority">
+            <option value="none">None</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </label>
+        <label>Due date <input name="due" type="date"></label>
+      </div>
+      <label>Tags <input name="tags" type="text" placeholder="e.g. bug, frontend"></label>
+      <div class="detail-actions">
+        <button type="button" id="detail-delete" class="danger">Delete</button>
+        <span class="spacer"></span>
+        <button type="button" id="detail-cancel">Cancel</button>
+        <button type="submit" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
   <script src="board.js"></script>
   <script src="script.js"></script>
 </body>
