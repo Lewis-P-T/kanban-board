@@ -104,7 +104,41 @@
     return !!(state && Array.isArray(state.columns) && state.cards && typeof state.nextId === 'number');
   }
 
-  const api = { COLUMNS, PRIORITIES, createBoard, addCard, shiftCard, moveCard, updateCard, parseTags, isoDate, isOverdue, deleteCard, findColumnIndex, isValid };
+  // ---- Board list (metadata only; each board's state is stored under its own key) ----
+
+  function createMeta(name = 'My Board') {
+    return { boards: [{ id: 'b1', name }], activeId: 'b1', nextId: 2 };
+  }
+
+  function cleanName(name, fallback) {
+    return String(name || '').trim().slice(0, 60) || fallback;
+  }
+
+  // Returns a new meta with the board added and made active.
+  function addBoard(meta, name) {
+    const id = 'b' + meta.nextId;
+    return { boards: [...meta.boards, { id, name: cleanName(name, 'Board ' + meta.nextId) }], activeId: id, nextId: meta.nextId + 1 };
+  }
+
+  function renameBoard(meta, id, name) {
+    return { ...meta, boards: meta.boards.map(b => b.id === id ? { ...b, name: cleanName(name, b.name) } : b) };
+  }
+
+  // The last board can't be removed. If the active board is removed, its neighbour becomes active.
+  function removeBoard(meta, id) {
+    const i = meta.boards.findIndex(b => b.id === id);
+    if (i < 0 || meta.boards.length === 1) return meta;
+    const boards = meta.boards.filter(b => b.id !== id);
+    const activeId = meta.activeId === id ? boards[Math.min(i, boards.length - 1)].id : meta.activeId;
+    return { ...meta, boards, activeId };
+  }
+
+  function isValidMeta(meta) {
+    return !!(meta && Array.isArray(meta.boards) && meta.boards.length && typeof meta.nextId === 'number' &&
+      meta.boards.some(b => b.id === meta.activeId));
+  }
+
+  const api = { createMeta, addBoard, renameBoard, removeBoard, isValidMeta, COLUMNS, PRIORITIES, createBoard, addCard, shiftCard, moveCard, updateCard, parseTags, isoDate, isOverdue, deleteCard, findColumnIndex, isValid };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Board = api;
 })(this);

@@ -1,23 +1,61 @@
-const STORAGE_KEY = 'kanban-board:v1';
+const LEGACY_KEY = 'kanban-board:v1';
+const META_KEY = 'kanban-meta:v1';
+const boardKey = id => 'kanban-board:v1:' + id;
 
-function load() {
-  try {
-    const s = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (Board.isValid(s)) return s;
-  } catch (e) { /* fall through to a fresh board */ }
-  return Board.createBoard();
+function read(key) {
+  try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; }
+}
+function write(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* storage unavailable */ }
+}
+function remove(key) {
+  try { localStorage.removeItem(key); } catch (e) { /* storage unavailable */ }
 }
 
-function save() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* storage unavailable */ }
+// First run with multi-board storage: adopt the old single board as "My Board".
+function loadMeta() {
+  const m = read(META_KEY);
+  if (Board.isValidMeta(m)) return m;
+  const meta = Board.createMeta();
+  const legacy = read(LEGACY_KEY);
+  if (Board.isValid(legacy)) write(boardKey('b1'), legacy);
+  write(META_KEY, meta);
+  return meta;
 }
 
-let state = load();
+function loadBoard(id) {
+  const s = read(boardKey(id));
+  return Board.isValid(s) ? s : Board.createBoard();
+}
 
+let meta = loadMeta();
+let history = History_.create(loadBoard(meta.activeId));
+let state = history.present;
+
+// Every edit goes through here so it lands in the undo history.
 function update(next) {
   if (next === state) return;
-  state = next;
-  save();
+  setHistory(History_.push(history, next));
+}
+
+function setHistory(h) {
+  if (h === history) return;
+  history = h;
+  state = h.present;
+  write(boardKey(meta.activeId), state);
+  render();
+}
+
+function setMeta(next) {
+  meta = next;
+  write(META_KEY, meta);
+}
+
+// Undo history is per session and per board; switching boards starts a fresh one.
+function switchBoard(id) {
+  setMeta({ ...meta, activeId: id });
+  history = History_.create(loadBoard(id));
+  state = history.present;
   render();
 }
 
@@ -26,6 +64,7 @@ const boardEl = document.getElementById('board');
 // ---- Rendering ----
 
 function render() {
+  renderToolbar();
   const today = Board.isoDate(new Date());
   boardEl.innerHTML = '';
   state.columns.forEach((col, colIdx) => {
@@ -128,6 +167,56 @@ function button(label, title, disabled, onClick) {
   b.addEventListener('click', onClick);
   return b;
 }
+
+// ---- Toolbar: board switcher + undo/redo ----
+
+const boardSelect = document.getElementById('board-select');
+const undoBtn = document.getElementById('undo');
+const redoBtn = document.getElementById('redo');
+
+function renderToolbar() {
+  boardSelect.innerHTML = '';
+  meta.boards.forEach(b => boardSelect.add(new Option(b.name, b.id, false, b.id === meta.activeId)));
+  document.getElementById('board-delete').disabled = meta.boards.length === 1;
+  undoBtn.disabled = !history.past.length;
+  redoBtn.disabled = !history.future.length;
+  document.title = boardName() + ' · Kanban Board';
+}
+
+function boardName() {
+  return meta.boards.find(b => b.id === meta.activeId).name;
+}
+
+boardSelect.addEventListener('change', () => switchBoard(boardSelect.value));
+document.getElementById('board-new').addEventListener('click', () => {
+  const name = prompt('Name for the new board:', 'Board ' + meta.nextId);
+  if (name === null) return;
+  setMeta(Board.addBoard(meta, name));
+  switchBoard(meta.activeId);
+});
+document.getElementById('board-rename').addEventListener('click', () => {
+  const name = prompt('Rename board:', boardName());
+  if (name === null) return;
+  setMeta(Board.renameBoard(meta, meta.activeId, name));
+  renderToolbar();
+});
+document.getElementById('board-delete').addEventListener('click', () => {
+  if (meta.boards.length === 1 || !confirm('Delete board "' + boardName() + '" and all its cards?')) return;
+  const id = meta.activeId;
+  setMeta(Board.removeBoard(meta, id));
+  remove(boardKey(id));
+  switchBoard(meta.activeId);
+});
+
+undoBtn.addEventListener('click', () => setHistory(History_.undo(history)));
+redoBtn.addEventListener('click', () => setHistory(History_.redo(history)));
+document.addEventListener('keydown', e => {
+  if (!(e.ctrlKey || e.metaKey) || dialog.open) return;
+  if (e.target.closest && e.target.closest('input, textarea, select')) return; // keep native text undo in fields
+  const k = e.key.toLowerCase();
+  if (k === 'z' && !e.shiftKey) { e.preventDefault(); setHistory(History_.undo(history)); }
+  else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); setHistory(History_.redo(history)); }
+});
 
 // ---- Drag & drop ----
 

@@ -9,6 +9,15 @@
 <body>
   <header>
     <h1>Kanban Board</h1>
+    <div class="toolbar">
+      <select id="board-select" aria-label="Current board"></select>
+      <button type="button" id="board-new" title="New board">+ New</button>
+      <button type="button" id="board-rename" title="Rename board">Rename</button>
+      <button type="button" id="board-delete" title="Delete board" class="danger">Delete</button>
+      <span class="sep"></span>
+      <button type="button" id="undo" title="Undo (Ctrl+Z)" aria-label="Undo">↶ Undo</button>
+      <button type="button" id="redo" title="Redo (Ctrl+Y)" aria-label="Redo">↷ Redo</button>
+    </div>
   </header>
   <main id="board" class="board"></main>
 
@@ -41,6 +50,7 @@
     </form>
   </dialog>
   <script src="board.js"></script>
+  <script src="history.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
