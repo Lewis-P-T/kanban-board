@@ -17,9 +17,25 @@
       <span class="sep"></span>
       <button type="button" id="undo" title="Undo (Ctrl+Z)" aria-label="Undo">↶ Undo</button>
       <button type="button" id="redo" title="Redo (Ctrl+Y)" aria-label="Redo">↷ Redo</button>
+      <span class="sep"></span>
+      <button type="button" id="view-toggle" aria-pressed="false">📊 Stats</button>
     </div>
   </header>
+  <div id="filters" class="filters">
+    <input id="search" type="search" placeholder="Search cards… (/)" aria-label="Search cards">
+    <select id="filter-tag" aria-label="Filter by tag"><option value="">All tags</option></select>
+    <select id="filter-prio" aria-label="Filter by priority">
+      <option value="">Any priority</option>
+      <option value="high">High</option>
+      <option value="medium">Medium</option>
+      <option value="low">Low</option>
+      <option value="none">None</option>
+    </select>
+    <button type="button" id="filter-clear" hidden>Clear</button>
+    <span id="filter-status" class="muted" aria-live="polite"></span>
+  </div>
   <main id="board" class="board"></main>
+  <section id="stats" class="stats" hidden aria-label="Board statistics"></section>
 
   <dialog id="detail" aria-labelledby="detail-heading">
     <form id="detail-form">

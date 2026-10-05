@@ -65,7 +65,11 @@ const boardEl = document.getElementById('board');
 
 function render() {
   renderToolbar();
+  renderFilterOptions();
+  if (view === 'stats') { renderStats(); return; }
   const today = Board.isoDate(new Date());
+  const filtering = isFiltering();
+  let shown = 0;
   boardEl.innerHTML = '';
   state.columns.forEach((col, colIdx) => {
     const section = document.createElement('section');
@@ -77,14 +81,24 @@ function render() {
     name.textContent = col.title;
     const count = document.createElement('span');
     count.className = 'count';
-    count.textContent = col.cardIds.length;
+    count.textContent = col.wip ? col.cardIds.length + ' / ' + col.wip : col.cardIds.length;
+    if (col.wip && col.cardIds.length > col.wip) {
+      section.classList.add('over-wip');
+      count.title = 'Over WIP limit of ' + col.wip;
+      count.textContent += ' ⚠';
+    }
     h2.append(name, count);
     section.appendChild(h2);
 
     const list = document.createElement('ul');
     list.className = 'cards';
     list.dataset.col = col.id;
-    col.cardIds.forEach(id => list.appendChild(renderCard(state.cards[id], colIdx, today)));
+    col.cardIds.forEach(id => {
+      const m = Board.matchCard(state.cards[id], filter);
+      if (!m) return;
+      shown++;
+      list.appendChild(renderCard(state.cards[id], colIdx, today, m.indices, filtering));
+    });
     section.appendChild(list);
 
     if (colIdx === 0) {
@@ -101,16 +115,18 @@ function render() {
     }
     boardEl.appendChild(section);
   });
+  filterStatus.textContent = filtering ? shown + ' of ' + Object.keys(state.cards).length + ' cards' : '';
+  filterClear.hidden = !filtering;
 }
 
-function renderCard(card, colIdx, today) {
+function renderCard(card, colIdx, today, hits = [], filtering = false) {
   const id = card.id;
   const li = document.createElement('li');
   li.className = 'card';
   if (card.priority && card.priority !== 'none') li.classList.add('prio-' + card.priority);
   if (Board.isOverdue(state, id, today)) li.classList.add('overdue');
   li.dataset.id = id;
-  li.draggable = true;
+  li.draggable = !filtering; // ponytail: drop index ignores hidden cards, so no dragging while filtered
 
   const body = document.createElement('button');
   body.type = 'button';
@@ -118,7 +134,7 @@ function renderCard(card, colIdx, today) {
   body.title = 'Open details';
   const title = document.createElement('span');
   title.className = 'title';
-  title.textContent = card.title;
+  highlight(title, card.title, hits);
   body.appendChild(title);
 
   const meta = document.createElement('span');
@@ -155,6 +171,23 @@ function renderCard(card, colIdx, today) {
   );
   li.appendChild(actions);
   return li;
+}
+
+// Fill `el` with `text`, wrapping the characters at `hits` (string indices) in <mark>.
+function highlight(el, text, hits) {
+  const set = new Set(hits);
+  let run = '', marked = false;
+  const flush = () => {
+    if (!run) return;
+    if (marked) { const m = document.createElement('mark'); m.textContent = run; el.appendChild(m); }
+    else el.appendChild(document.createTextNode(run));
+    run = '';
+  };
+  for (let i = 0; i < text.length; i++) {
+    if (set.has(i) !== marked) { flush(); marked = !marked; }
+    run += text[i];
+  }
+  flush();
 }
 
 function button(label, title, disabled, onClick) {
@@ -217,6 +250,148 @@ document.addEventListener('keydown', e => {
   if (k === 'z' && !e.shiftKey) { e.preventDefault(); setHistory(History_.undo(history)); }
   else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); setHistory(History_.redo(history)); }
 });
+
+// ---- Search & filters (session-only, not part of undo history) ----
+
+const searchEl = document.getElementById('search');
+const tagEl = document.getElementById('filter-tag');
+const prioEl = document.getElementById('filter-prio');
+const filterClear = document.getElementById('filter-clear');
+const filterStatus = document.getElementById('filter-status');
+let filter = { query: '', tag: '', priority: '' };
+
+function isFiltering() {
+  return !!(filter.query.trim() || filter.tag || filter.priority);
+}
+
+function renderFilterOptions() {
+  const tags = Board.allTags(state);
+  if (filter.tag && !tags.includes(filter.tag)) filter.tag = '';
+  tagEl.innerHTML = '';
+  tagEl.add(new Option('All tags', ''));
+  tags.forEach(t => tagEl.add(new Option('#' + t, t)));
+  tagEl.value = filter.tag;
+}
+
+function setFilter(patch) {
+  filter = { ...filter, ...patch };
+  render();
+}
+
+searchEl.addEventListener('input', () => setFilter({ query: searchEl.value }));
+tagEl.addEventListener('change', () => setFilter({ tag: tagEl.value }));
+prioEl.addEventListener('change', () => setFilter({ priority: prioEl.value }));
+filterClear.addEventListener('click', () => {
+  searchEl.value = '';
+  prioEl.value = '';
+  setFilter({ query: '', tag: '', priority: '' });
+});
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && !dialog.open && view === 'board' && !(e.target.closest && e.target.closest('input, textarea, select'))) {
+    e.preventDefault();
+    searchEl.focus();
+  } else if (e.key === 'Escape' && e.target === searchEl && searchEl.value) {
+    searchEl.value = '';
+    setFilter({ query: '' });
+  }
+});
+
+// ---- Stats view ----
+
+const statsEl = document.getElementById('stats');
+const viewBtn = document.getElementById('view-toggle');
+const filtersEl = document.getElementById('filters');
+let view = 'board';
+
+viewBtn.addEventListener('click', () => {
+  view = view === 'board' ? 'stats' : 'board';
+  viewBtn.setAttribute('aria-pressed', view === 'stats');
+  viewBtn.textContent = view === 'stats' ? '▦ Board' : '📊 Stats';
+  boardEl.hidden = filtersEl.hidden = view === 'stats';
+  statsEl.hidden = view !== 'stats';
+  render();
+});
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function svg(tag, attrs, text) {
+  const el = document.createElementNS(SVG_NS, tag);
+  Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+  if (text !== undefined) el.textContent = text;
+  return el;
+}
+
+// Vertical bar per column; a dashed line marks the column's WIP limit.
+function barChart(columns) {
+  const W = 360, H = 200, pad = 28, bw = 60;
+  const max = Math.max(1, ...columns.map(c => Math.max(c.count, c.wip)));
+  const gap = (W - pad * 2 - bw * columns.length) / Math.max(1, columns.length - 1);
+  const y = n => H - pad - (n / max) * (H - pad * 2);
+  const chart = svg('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart', role: 'img',
+    'aria-label': columns.map(c => c.title + ': ' + c.count).join(', ') });
+  chart.appendChild(svg('line', { x1: pad, x2: W - pad, y1: H - pad, y2: H - pad, class: 'axis' }));
+  columns.forEach((c, i) => {
+    const x = pad + i * (bw + gap);
+    chart.appendChild(svg('rect', { x, y: y(c.count), width: bw, height: H - pad - y(c.count), rx: 4, class: 'bar' + (c.over ? ' over' : '') }));
+    chart.appendChild(svg('text', { x: x + bw / 2, y: y(c.count) - 6, class: 'val' }, c.count));
+    chart.appendChild(svg('text', { x: x + bw / 2, y: H - pad + 16, class: 'lbl' }, c.title));
+    if (c.wip) chart.appendChild(svg('line', { x1: x - 6, x2: x + bw + 6, y1: y(c.wip), y2: y(c.wip), class: 'wip' }));
+  });
+  return chart;
+}
+
+function tile(label, value, warn) {
+  const d = document.createElement('div');
+  d.className = 'tile' + (warn ? ' warn' : '');
+  const v = document.createElement('strong');
+  v.textContent = value;
+  const l = document.createElement('span');
+  l.textContent = label;
+  d.append(v, l);
+  return d;
+}
+
+function renderStats() {
+  const s = Board.boardStats(state);
+  statsEl.innerHTML = '';
+
+  const tiles = document.createElement('div');
+  tiles.className = 'tiles';
+  tiles.append(
+    tile('Total cards', s.total),
+    tile('Overdue', s.overdue, s.overdue > 0),
+    tile('Done', s.donePct + '%'),
+    tile('High priority', s.byPriority.high),
+  );
+
+  const over = s.columns.filter(c => c.over);
+  const warn = document.createElement('p');
+  warn.className = 'wip-warning';
+  warn.textContent = over.length ? '⚠ Over WIP limit: ' + over.map(c => `${c.title} (${c.count}/${c.wip})`).join(', ') : '';
+
+  const chartBox = document.createElement('div');
+  chartBox.className = 'panel';
+  chartBox.innerHTML = '<h2>Cards per column</h2>';
+  chartBox.appendChild(barChart(s.columns));
+
+  const wipBox = document.createElement('div');
+  wipBox.className = 'panel';
+  wipBox.innerHTML = '<h2>WIP limits</h2><p class="muted">Max cards per column. 0 = no limit.</p>';
+  s.columns.forEach(c => {
+    const label = document.createElement('label');
+    label.className = 'wip-row';
+    label.textContent = c.title;
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.min = 0;
+    input.max = 999;
+    input.value = c.wip;
+    input.addEventListener('change', () => update(Board.setWipLimit(state, c.id, input.value)));
+    label.appendChild(input);
+    wipBox.appendChild(label);
+  });
+
+  statsEl.append(tiles, warn, chartBox, wipBox);
+}
 
 // ---- Drag & drop ----
 

@@ -138,7 +138,78 @@
       meta.boards.some(b => b.id === meta.activeId));
   }
 
-  const api = { createMeta, addBoard, renameBoard, removeBoard, isValidMeta, COLUMNS, PRIORITIES, createBoard, addCard, shiftCard, moveCard, updateCard, parseTags, isoDate, isOverdue, deleteCard, findColumnIndex, isValid };
+  // ---- Search & filters ----
+
+  // Fuzzy subsequence match: every query char must appear in order in `text`.
+  // Score rewards consecutive runs and word-start hits, and penalises gaps.
+  // Returns { score, indices } (indices into `text` for highlighting) or null.
+  function fuzzyMatch(query, text) {
+    const q = String(query || '').toLowerCase().replace(/\s+/g, '');
+    const t = String(text || '');
+    const lower = t.toLowerCase();
+    if (!q) return { score: 0, indices: [] };
+    const indices = [];
+    let score = 0, ti = 0, prev = -2;
+    for (const ch of q) {
+      const at = lower.indexOf(ch, ti);
+      if (at < 0) return null;
+      score += 1;
+      if (at === prev + 1) score += 5;                           // consecutive
+      if (at === 0 || /[\s\-_#.,/]/.test(t[at - 1])) score += 3; // word start
+      if (prev >= 0) score -= Math.min(at - prev - 1, 3) * 0.5;  // gap
+      indices.push(at);
+      prev = at;
+      ti = at + 1;
+    }
+    return { score, indices };
+  }
+
+  // Match one card against { query, tag, priority }. Title matches carry highlight indices;
+  // a description/tag-only hit still matches at a lower score. Returns { score, indices } or null.
+  function matchCard(card, filter = {}) {
+    if (filter.tag && !(card.tags || []).includes(filter.tag)) return null;
+    if (filter.priority && (card.priority || 'none') !== filter.priority) return null;
+    if (!filter.query || !filter.query.trim()) return { score: 0, indices: [] };
+    const title = fuzzyMatch(filter.query, card.title);
+    if (title) return title;
+    const other = fuzzyMatch(filter.query, (card.tags || []).join(' ') + ' ' + (card.description || ''));
+    return other ? { score: other.score / 2, indices: [] } : null;
+  }
+
+  function allTags(state) {
+    const tags = new Set();
+    Object.values(state.cards).forEach(c => (c.tags || []).forEach(t => tags.add(t)));
+    return [...tags].sort();
+  }
+
+  // ---- WIP limits & stats ----
+
+  // n <= 0 (or not a number) clears the limit.
+  function setWipLimit(state, colId, n) {
+    n = Math.floor(Number(n));
+    const wip = n > 0 ? Math.min(n, 999) : 0;
+    const col = state.columns.find(c => c.id === colId);
+    if (!col || (col.wip || 0) === wip) return state;
+    return { ...state, columns: state.columns.map(c => c.id === colId ? { ...c, wip } : c) };
+  }
+
+  function boardStats(state, today = isoDate(new Date())) {
+    const columns = state.columns.map(c => ({
+      id: c.id, title: c.title, count: c.cardIds.length, wip: c.wip || 0,
+      over: !!c.wip && c.cardIds.length > c.wip,
+    }));
+    const byPriority = Object.fromEntries(PRIORITIES.map(p => [p, 0]));
+    Object.values(state.cards).forEach(c => { byPriority[c.priority || 'none']++; });
+    const total = columns.reduce((n, c) => n + c.count, 0);
+    const done = columns[columns.length - 1].count;
+    return {
+      columns, total, byPriority,
+      overdue: Object.keys(state.cards).filter(id => isOverdue(state, id, today)).length,
+      donePct: total ? Math.round(done / total * 100) : 0,
+    };
+  }
+
+  const api = { fuzzyMatch, matchCard, allTags, setWipLimit, boardStats, createMeta, addBoard, renameBoard, removeBoard, isValidMeta, COLUMNS, PRIORITIES, createBoard, addCard, shiftCard, moveCard, updateCard, parseTags, isoDate, isOverdue, deleteCard, findColumnIndex, isValid };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Board = api;
 })(this);

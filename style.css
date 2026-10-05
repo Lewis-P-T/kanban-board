@@ -65,3 +65,35 @@ header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
 .toolbar button { padding: 4px 10px; }
 .toolbar button.danger { padding: 4px 10px; }
 .toolbar .sep { width: 1px; height: 22px; background: var(--border); margin: 0 4px; }
+
+/* Search & filters */
+[hidden] { display: none !important; }
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 24px 14px; }
+.filters input, .filters select { font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; }
+.filters input { flex: 1; min-width: 160px; max-width: 320px; }
+.filters button { padding: 4px 10px; }
+mark { background: #ffe27a; color: #1d2130; border-radius: 2px; }
+.column.over-wip { box-shadow: 0 0 0 2px var(--danger) inset; }
+.column.over-wip .count { color: var(--danger); font-weight: 600; }
+
+/* Stats view */
+.stats { padding: 0 24px 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; align-items: start; }
+.tiles { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
+.tile { background: var(--panel); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 2px; }
+.tile strong { font-size: 1.6rem; }
+.tile span { color: var(--muted); font-size: .85rem; }
+.tile.warn strong { color: var(--danger); }
+.wip-warning { grid-column: 1 / -1; margin: 0; color: var(--danger); font-weight: 600; }
+.wip-warning:empty { display: none; }
+.panel { background: var(--panel); border-radius: 10px; padding: 14px; }
+.panel h2 { margin: 0 0 8px; font-size: 1rem; }
+.chart { width: 100%; height: auto; }
+.chart .axis { stroke: var(--border); stroke-width: 2; }
+.chart .bar { fill: var(--accent); }
+.chart .bar.over { fill: var(--danger); }
+.chart .wip { stroke: var(--danger); stroke-width: 2; stroke-dasharray: 5 4; }
+.chart text { fill: var(--text); font-size: 12px; text-anchor: middle; }
+.chart .lbl { fill: var(--muted); }
+.wip-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
+.wip-row input { width: 80px; font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
+@media (max-width: 720px) { .filters, .stats { padding-left: 16px; padding-right: 16px; } }
