@@ -244,7 +244,7 @@ document.getElementById('board-delete').addEventListener('click', () => {
 undoBtn.addEventListener('click', () => setHistory(History_.undo(history)));
 redoBtn.addEventListener('click', () => setHistory(History_.redo(history)));
 document.addEventListener('keydown', e => {
-  if (!(e.ctrlKey || e.metaKey) || dialog.open) return;
+  if (!(e.ctrlKey || e.metaKey) || document.querySelector('dialog[open]')) return;
   if (e.target.closest && e.target.closest('input, textarea, select')) return; // keep native text undo in fields
   const k = e.key.toLowerCase();
   if (k === 'z' && !e.shiftKey) { e.preventDefault(); setHistory(History_.undo(history)); }
@@ -287,12 +287,57 @@ filterClear.addEventListener('click', () => {
   setFilter({ query: '', tag: '', priority: '' });
 });
 document.addEventListener('keydown', e => {
-  if (e.key === '/' && !dialog.open && view === 'board' && !(e.target.closest && e.target.closest('input, textarea, select'))) {
+  if (e.key === '/' && !document.querySelector('dialog[open]') && view === 'board' && !(e.target.closest && e.target.closest('input, textarea, select'))) {
     e.preventDefault();
     searchEl.focus();
   } else if (e.key === 'Escape' && e.target === searchEl && searchEl.value) {
     searchEl.value = '';
     setFilter({ query: '' });
+  }
+});
+
+// ---- Import / export ----
+
+const importFile = document.getElementById('import-file');
+
+document.getElementById('export').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(Board.exportBoard(boardName(), state), null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (boardName().replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'board') + '.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+
+document.getElementById('import').addEventListener('click', () => importFile.click());
+
+// Imports always become a new board, so nothing existing is overwritten.
+importFile.addEventListener('change', async () => {
+  const file = importFile.files[0];
+  importFile.value = '';
+  if (!file) return;
+  const result = Board.importBoard(await file.text());
+  if (!result) { alert('That file is not a valid Kanban board export.'); return; }
+  setMeta(Board.addBoard(meta, result.name));
+  write(boardKey(meta.activeId), result.state);
+  switchBoard(meta.activeId);
+});
+
+// ---- Single-key shortcuts ----
+
+const shortcutsDlg = document.getElementById('shortcuts');
+document.getElementById('help').addEventListener('click', () => shortcutsDlg.showModal());
+shortcutsDlg.addEventListener('click', e => { if (e.target === shortcutsDlg) shortcutsDlg.close(); });
+
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey || document.querySelector('dialog[open]')) return;
+  if (e.target.closest && e.target.closest('input, textarea, select')) return;
+  if (e.key === '?') { e.preventDefault(); shortcutsDlg.showModal(); }
+  else if (e.key === 's' || e.key === 'S') { e.preventDefault(); viewBtn.click(); }
+  else if (e.key === 'n' || e.key === 'N') {
+    e.preventDefault();
+    if (view === 'stats') viewBtn.click();
+    boardEl.querySelector('.add-form input').focus();
   }
 });
 

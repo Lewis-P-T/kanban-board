@@ -19,6 +19,11 @@
       <button type="button" id="redo" title="Redo (Ctrl+Y)" aria-label="Redo">↷ Redo</button>
       <span class="sep"></span>
       <button type="button" id="view-toggle" aria-pressed="false">📊 Stats</button>
+      <span class="sep"></span>
+      <button type="button" id="export" title="Download this board as JSON">⇩ Export</button>
+      <button type="button" id="import" title="Import a board from a JSON file">⇧ Import</button>
+      <input type="file" id="import-file" accept=".json,application/json" hidden>
+      <button type="button" id="help" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
     </div>
   </header>
   <div id="filters" class="filters">
@@ -64,6 +69,20 @@
         <button type="submit" class="primary">Save</button>
       </div>
     </form>
+  </dialog>
+  <dialog id="shortcuts" aria-labelledby="shortcuts-heading">
+    <h2 id="shortcuts-heading">Keyboard shortcuts</h2>
+    <dl class="keys">
+      <dt><kbd>/</kbd></dt><dd>Focus search</dd>
+      <dt><kbd>Esc</kbd></dt><dd>Clear search / close dialog</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>Z</kbd></dt><dd>Undo</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>Y</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></dt><dd>Redo</dd>
+      <dt><kbd>N</kbd></dt><dd>New task (focus the add box)</dd>
+      <dt><kbd>S</kbd></dt><dd>Toggle stats view</dd>
+      <dt><kbd>?</kbd></dt><dd>Show this help</dd>
+    </dl>
+    <p class="muted">Drag cards between columns, or use the ← → buttons (handy on touch screens). Click a card to edit it.</p>
+    <form method="dialog" class="detail-actions"><span class="spacer"></span><button class="primary">Close</button></form>
   </dialog>
   <script src="board.js"></script>
   <script src="history.js"></script>

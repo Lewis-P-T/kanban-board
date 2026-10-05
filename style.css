@@ -97,3 +97,25 @@ mark { background: #ffe27a; color: #1d2130; border-radius: 2px; }
 .wip-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
 .wip-row input { width: 80px; font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
 @media (max-width: 720px) { .filters, .stats { padding-left: 16px; padding-right: 16px; } }
+
+/* Shortcuts help */
+#shortcuts h2 { margin: 0 0 12px; font-size: 1.1rem; }
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 0 0 12px; align-items: center; }
+.keys dt { white-space: nowrap; }
+.keys dd { margin: 0; }
+kbd { font: .8rem ui-monospace, Consolas, monospace; background: var(--bg); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; }
+
+/* Mobile / touch polish */
+@media (pointer: coarse) {
+  button, .toolbar select, .filters input, .filters select { min-height: 40px; }
+  .actions button { min-width: 40px; }
+  .card { cursor: default; }
+}
+@media (max-width: 720px) {
+  h1 { font-size: 1.2rem; width: 100%; }
+  .toolbar .sep { display: none; }
+  .toolbar select { flex: 1 1 100%; max-width: none; }
+  .filters input { max-width: none; flex-basis: 100%; }
+  .keys { grid-template-columns: 1fr; gap: 2px; }
+  .keys dd { margin-bottom: 8px; }
+}

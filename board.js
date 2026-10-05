@@ -209,7 +209,49 @@
     };
   }
 
-  const api = { fuzzyMatch, matchCard, allTags, setWipLimit, boardStats, createMeta, addBoard, renameBoard, removeBoard, isValidMeta, COLUMNS, PRIORITIES, createBoard, addCard, shiftCard, moveCard, updateCard, parseTags, isoDate, isOverdue, deleteCard, findColumnIndex, isValid };
+  // ---- Import / export ----
+
+  function exportBoard(name, state) {
+    return { app: 'kanban-board', version: 1, name, exported: new Date().toISOString(), board: state };
+  }
+
+  // Parse untrusted JSON (an export file, or a bare board state) into { name, state } or null.
+  // Cards are re-validated through updateCard, unknown columns are dropped, dangling or
+  // duplicate card ids are removed, and orphan cards land in the first column.
+  function importBoard(text) {
+    let data;
+    try { data = JSON.parse(text); } catch (e) { return null; }
+    const src = data && data.board ? data.board : data;
+    if (!src || !Array.isArray(src.columns) || !src.cards || typeof src.cards !== 'object') return null;
+    let state = createBoard();
+    const placed = new Set();
+    let maxId = 0;
+    const take = (oldCol, newCol) => (Array.isArray(oldCol.cardIds) ? oldCol.cardIds : []).forEach(id => {
+      if (typeof id !== 'string' || !/^[\w-]{1,40}$/.test(id) || id === '__proto__' || placed.has(id) ||
+        !Object.prototype.hasOwnProperty.call(src.cards, id)) return;
+      const c = src.cards[id];
+      if (!c || typeof c.title !== 'string' || !c.title.trim()) return;
+      placed.add(id);
+      if (/^c\d+$/.test(id)) maxId = Math.max(maxId, Number(id.slice(1)));
+      state.cards[id] = { id, title: c.title.trim().slice(0, 200), created: Number(c.created) || Date.now() };
+      state = updateCard(state, id, { description: c.description, priority: c.priority, due: c.due, tags: Array.isArray(c.tags) ? c.tags : '' });
+      newCol.cardIds.push(id);
+    });
+    state.columns.forEach(col => {
+      const old = src.columns.find(c => c && c.id === col.id);
+      if (!old) return;
+      take(old, col);
+      const wip = Math.floor(Number(old.wip));
+      if (wip > 0) col.wip = Math.min(wip, 999);
+    });
+    take({ cardIds: Object.keys(src.cards) }, state.columns[0]);
+    // Non-"cN" ids (hand-written files) are kept as-is; nextId only has to avoid "cN" collisions.
+    state.nextId = maxId + 1;
+    const name = cleanName(data.name, 'Imported board');
+    return { name, state };
+  }
+
+  const api = { exportBoard, importBoard, fuzzyMatch, matchCard, allTags, setWipLimit, boardStats, createMeta, addBoard, renameBoard, removeBoard, isValidMeta, COLUMNS, PRIORITIES, createBoard, addCard, shiftCard, moveCard, updateCard, parseTags, isoDate, isOverdue, deleteCard, findColumnIndex, isValid };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Board = api;
 })(this);
